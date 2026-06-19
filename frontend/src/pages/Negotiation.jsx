@@ -1,170 +1,74 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import Button from "../components/Button";
-import ChatBubble from "../components/ChatBubble";
 import { api } from "../services/api";
-import { saveToHistory } from "../store/history";
 
 export default function Negotiation() {
   const nav = useNavigate();
   const stored = sessionStorage.getItem("ana_deal_for_negotiation");
+  const hasStartedRef = useRef(false);
+
 
   const base = useMemo(() => {
-    try { return stored ? JSON.parse(stored) : null; } catch { return null; }
+    try {
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
   }, [stored]);
 
-  const [sessionId, setSessionId] = useState(null);
-  const [state, setState] = useState(null);
-  const [counter, setCounter] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     if (!base) return;
-    const { deal, budget } = base;
-    setCounter(Math.min(budget, deal.price));
+    if (hasStartedRef.current) return;
+
+    hasStartedRef.current = true;
+
+    const { budget, product_offer_id, deal, starting_offer } = base;
 
     (async () => {
       try {
-        setErr("");
-        setBusy(true);
-        const res = await api.startNegotiation({
-          deal_id: deal.deal_id,
-          brand: deal.brand,
-          model: deal.model,
-          seller: deal.seller,
-          listed_price: deal.price,
+        const res = await api.post("/db-negotiations/start", {
+          product_offer_id,
           budget: Number(budget),
+          starting_offer: starting_offer ? Number(starting_offer) : null,
         });
-        setSessionId(res.session_id);
-        setState(res);
+
+        const payload = { deal, budget, result: res };
+
+        localStorage.setItem("ana_last_result", JSON.stringify(payload));
+        localStorage.setItem("ana_current_negotiation_id", String(res.negotiation_id));
+        localStorage.setItem("ana_current_deal_meta", JSON.stringify({ deal, budget }));
+
+        nav(`/agreement/${res.negotiation_id}`);
       } catch (e) {
-        setErr(e.message);
-      } finally {
-        setBusy(false);
+        setErr(e?.message || "Start negotiation failed");
+        hasStartedRef.current = false;
       }
     })();
-  }, [base]);
-
-  if (!base) {
-    return (
-      <div className="app">
-        <Navbar />
-        <main className="wrap">
-          <div className="empty">
-            <div className="empty__t">😅 No deal selected</div>
-            <div className="empty__s">Select a deal first.</div>
-            <div className="row" style={{ marginTop: 12 }}>
-              <Button variant="primary" onClick={() => nav("/search")}>🔎 Go to Search</Button>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const { deal, budget } = base;
-
-  async function step(action, price) {
-    if (!sessionId) return;
-    try {
-      setErr("");
-      setBusy(true);
-      const res = await api.negotiateStep(sessionId, action, price);
-      setState(res);
-
-      if (res.status !== "IN_PROGRESS") {
-        saveToHistory({
-          at: new Date().toISOString(),
-          session_id: res.session_id,
-          brand: deal.brand,
-          model: deal.model,
-          seller: deal.seller,
-          listed_price: res.listed_price,
-          agreed_price: res.agreed_price,
-          status: res.status,
-        });
-        sessionStorage.setItem("ana_last_result", JSON.stringify({ deal, budget, result: res }));
-        nav("/agreement");
-      }
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const rounds = state?.rounds || [];
-  const lastSellerOffer = state?.last_seller_offer;
+  }, [base, nav]);
 
   return (
     <div className="app">
       <Navbar />
       <main className="wrap">
         <div className="pageHead">
-          <h2 className="h2">💬 Negotiation chat</h2>
-          <div className="muted">
-            Budget ₹{budget} • Listed ₹{deal.price} • Seller {deal.seller}
-          </div>
+          <h2 className="h2">🤖 Auto Negotiation In Progress</h2>
+          <div className="muted">Buyer agent and seller agent are negotiating automatically</div>
         </div>
 
-        <div className="card chatCard">
-          <div className="chat">
-            <ChatBubble
-              side="system"
-              text={`🔎 Negotiating for ${deal.brand} ${deal.model} • Budget ₹${budget}`}
-            />
-
-            {rounds.map((r) => (
-              <div key={r.round_no}>
-                <ChatBubble
-                  side="buyer"
-                  text={`Buyer Agent: Counter ₹${r.buyer_offer} 🙂`}
-                  meta={`Round ${r.round_no}`}
-                />
-                <ChatBubble
-                  side="seller"
-                  text={`Seller Agent: ${r.seller_action === "ACCEPT" ? "✅ Accept" : "🔁 Counter"} ₹${r.seller_offer}`}
-                  meta={`Seller • ${r.note}`}
-                />
+        <div className="card">
+          {err ? (
+            <div className="error">⚠️ {err}</div>
+          ) : (
+            <div className="empty">
+              <div className="empty__t">⏳ Please wait...</div>
+              <div className="empty__s">
+                The agents are negotiating the best possible deal for you.
               </div>
-            ))}
-
-            {state?.status === "IN_PROGRESS" ? (
-              <ChatBubble
-                side="system"
-                text={`Current seller offer: ₹${lastSellerOffer} — choose: ✅ Accept, 🔁 Counter, ❌ Cancel`}
-              />
-            ) : null}
-          </div>
-
-          {err ? <div className="error">⚠️ {err}</div> : null}
-
-          <div className="chatActions">
-            <Button variant="success" disabled={busy || !state || state.status !== "IN_PROGRESS"} onClick={() => step("ACCEPT")}>
-              ✅ Accept (₹{lastSellerOffer ?? "--"})
-            </Button>
-
-            <div className="counterBox">
-              <label>Your counter (₹)</label>
-              <input
-                type="number"
-                value={counter}
-                onChange={(e) => setCounter(Number(e.target.value))}
-                min={1}
-              />
-              <Button variant="ghost" disabled={busy || !state || state.status !== "IN_PROGRESS"} onClick={() => step("COUNTER", counter)}>
-                🔁 Send Counter
-              </Button>
             </div>
-
-            <Button variant="danger" disabled={busy || !state || state.status !== "IN_PROGRESS"} onClick={() => step("CANCEL")}>
-              ❌ Cancel
-            </Button>
-          </div>
-
-          {busy ? <div className="muted" style={{ padding: "0 14px 14px" }}>⏳ Talking to agents…</div> : null}
+          )}
         </div>
       </main>
     </div>

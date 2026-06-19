@@ -1,20 +1,31 @@
-const KEY = "ana_history_v1";
+const KEY_PREFIX = "ana_history_user_v1:";
 
-export function loadHistory() {
+function safeJsonParse(value, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    return value ? JSON.parse(value) : fallback;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
-export function saveToHistory(item) {
-  const prev = loadHistory();
+export function historyKeyForUser(userId) {
+  return `${KEY_PREFIX}${userId}`;
+}
+
+export function loadHistory(userId) {
+  if (!userId) return [];
+  return safeJsonParse(localStorage.getItem(historyKeyForUser(userId)), []);
+}
+
+export function saveToHistory(userId, item) {
+  if (!userId) return [];
+  const prev = loadHistory(userId);
   const next = [item, ...prev].slice(0, 50);
-  localStorage.setItem(KEY, JSON.stringify(next));
+  localStorage.setItem(historyKeyForUser(userId), JSON.stringify(next));
   return next;
 }
 
-export function clearHistory() {
-  localStorage.removeItem(KEY);
+export function clearHistory(userId) {
+  if (!userId) return;
+  localStorage.removeItem(historyKeyForUser(userId));
 }

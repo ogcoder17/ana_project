@@ -1,25 +1,42 @@
-const API_BASE = "http://127.0.0.1:8000";
+const BASE_URL = "http://127.0.0.1:8000";
 
-async function post(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+export async function apiFetch(path, options = {}) {
+  const token = localStorage.getItem("ana_token");
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
   });
+
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.detail || `Request failed: ${res.status}`);
+    throw new Error(data.detail || data.message || "Request failed");
   }
-  return res.json();
+
+  return data;
 }
 
 export const api = {
-  searchDeals: (brand, model, budget) =>
-    post("/search-deals", { brand, model, budget }),
-
-  startNegotiation: (payload) =>
-    post("/start-negotiation", payload),
-
-  negotiateStep: (sessionId, action, counter_price) =>
-    post(`/negotiate/${sessionId}`, { action, counter_price }),
+  get: (path) => apiFetch(path),
+  post: (path, body) =>
+    apiFetch(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  put: (path, body) =>
+    apiFetch(path, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  delete: (path) =>
+    apiFetch(path, {
+      method: "DELETE",
+    }),
 };

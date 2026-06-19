@@ -2,9 +2,11 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Button from "../components/Button";
 import StatPill from "../components/StatPill";
+import { useAuth } from "../auth/AuthContext";
 
 export default function Landing() {
   const nav = useNavigate();
+  const { isAuthed, user } = useAuth();
 
   return (
     <div className="app">
@@ -13,19 +15,27 @@ export default function Landing() {
       <main className="wrap hero">
         <section className="hero__left">
           <div className="badge">✨ Agentic AI • Buyer ↔ Seller • Fair deals</div>
-          <h1 className="h1">
-            ANA - Autonomous Negotiation Agent 🤝
-          </h1>
-          <h4>Negotiate your next price automatically </h4>
+          <h1 className="h1">Negotiate your next product price — automatically 🤝</h1>
           <p className="p">
-            Tell ANA your budget and model. Buyer Agent finds deals (mock for now),
-            negotiates with Seller Agent, and brings you the best fair price — you approve every step ✅.
+            Tell ANA your budget and product. Buyer Agent finds deals, negotiates with Seller Agent,
+            and brings you a fair outcome with full transparency.
           </p>
 
-          <div className="row">
-            <Button variant="primary" onClick={() => nav("/search")}>🚀 Start</Button>
-            <Button variant="ghost" onClick={() => nav("/history")}>🧾 View History</Button>
-          </div>
+          {isAuthed ? (
+            <div className="row">
+              <Button variant="primary" onClick={() => nav("/search")}>
+                🚀 Continue as {user?.role}
+              </Button>
+              <Button variant="ghost" onClick={() => nav("/history")}>
+                🧾 My History
+              </Button>
+            </div>
+          ) : (
+            <div className="row">
+              <Button variant="primary" onClick={() => nav("/login")}>🔐 Login</Button>
+              <Button variant="ghost" onClick={() => nav("/signup")}>✨ Sign up</Button>
+            </div>
+          )}
 
           <div className="stats">
             <StatPill icon="⚡" title="Fast" subtitle="Multi-round negotiation in seconds" />
@@ -38,26 +48,16 @@ export default function Landing() {
           <div className="card card--glow">
             <div className="card__head">
               <div className="pill">💬 Live preview</div>
-              <div className="pill pill--muted">Mock deals</div>
+              <div className="pill pill--muted">Backend auth ready</div>
             </div>
 
             <div className="preview">
-              <div className="preview__row"><span>Buyer Agent:</span> “Budget ₹15,000 for ABC Phone X 📱”</div>
-              <div className="preview__row"><span>System:</span> “Found 8 deals near your budget 🔎”</div>
-              <div className="preview__row"><span>Seller Agent:</span> “Offer ₹15,900 with warranty ✅”</div>
-              <div className="preview__row"><span>Buyer Agent:</span> “Counter ₹14,700 🙂”</div>
-            </div>
-            <br>
-            </br>
-
-            <div className="row">
-              <Button variant="success" size="sm">✅ Accept</Button>
-              <Button variant="ghost" size="sm">🔁 Counter</Button>
-              <Button variant="danger" size="sm">❌ Cancel</Button>
+              <div className="preview__row"><span>Buyer:</span> Searches product + budget</div>
+              <div className="preview__row"><span>System:</span> Finds best deals</div>
+              <div className="preview__row"><span>Seller:</span> Negotiates fair counter offer</div>
             </div>
           </div>
 
-          <div className="hint">Tip: Clear budget + must-haves = better negotiation 🎯</div>
         </section>
       </main>
     </div>
